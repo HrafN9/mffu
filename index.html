@@ -3,827 +3,694 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MFFU 50K Rapid EOD Tracker</title>
-    <!-- Tailwind CSS for mobile-first styling -->
+    <title>Trading Günlüğü & İstatistik Platformu</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
         }
-        /* Gizli scrollbar tasarımı */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="p-4 md:p-8">
 
-<div class="max-w-4xl mx-auto space-y-6">
-    
-    <!-- Başlık -->
-    <div class="text-center space-y-2 relative">
-        <button id="btn-show-login" class="absolute right-0 top-0 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded-full border border-blue-500/30 transition shadow-lg flex items-center">
-            <i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et
-        </button>
-        <h1 class="text-2xl md:text-3xl font-bold text-blue-400">
-            <i class="fa-solid fa-chart-line mr-2"></i>MFFU 50K Tracker
-        </h1>
-        <p class="text-slate-400 text-sm">Rapid EOD (Gün Sonu Drawdown) Simülatörü</p>
-    </div>
-
-    <!-- Bildirim Alanı (Kurallar İçin) -->
-    <div id="alert-container" class="hidden rounded-xl p-4 font-semibold text-center shadow-lg transition-all"></div>
-
-    <!-- Dashboard Metrikleri -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Güncel Bakiye</p>
-            <p id="metric-balance" class="text-xl md:text-2xl font-bold text-white">$50,000</p>
-            <p id="metric-pl" class="text-xs text-slate-400 mt-1">Net: $0</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Kalan Hedef</p>
-            <p id="metric-target" class="text-xl md:text-2xl font-bold text-green-400">$3,000</p>
-            <p class="text-xs text-slate-500 mt-1">Hedef: $53,000</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Kalan Drawdown</p>
-            <p id="metric-dd" class="text-xl md:text-2xl font-bold text-red-400">$2,000</p>
-            <p class="text-xs text-slate-500 mt-1">Sınır: $48,000</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">İşlem Günü</p>
-            <p id="metric-days" class="text-xl md:text-2xl font-bold text-blue-300">0 / 4</p>
-            <p class="text-xs text-slate-500 mt-1">Farklı Gün</p>
-        </div>
-    </div>
-
-    <!-- Form ve Tablo Alanı -->
-    <div class="grid md:grid-cols-3 gap-6">
-        
-        <!-- Yeni İşlem Formu -->
-        <div class="glass-panel rounded-xl p-5 md:col-span-1">
-            <h2 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2">
-                <i class="fa-solid fa-plus mr-2"></i>Yeni İşlem
-            </h2>
-            <form id="trade-form" class="space-y-4 text-sm">
-                
-                <div>
-                    <label class="block text-slate-400 mb-1">Tarih</label>
-                    <input type="date" id="input-date" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-slate-400 mb-1">Parite</label>
-                        <select id="input-asset" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                            <option value="NQ">NQ (Mini)</option>
-                            <option value="MNQ">MNQ (Micro)</option>
-                            <option value="ES">ES (Mini)</option>
-                            <option value="MES">MES (Micro)</option>
-                            <option value="EURUSD">EURUSD</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Yön</label>
-                        <select id="input-direction" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                            <option value="Long">Long 📈</option>
-                            <option value="Short">Short 📉</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Setup Türü</label>
-                    <select id="input-setup" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                        <option value="FVG">FVG Dolumu</option>
-                        <option value="Liquidity Sweep">Likidite Avı</option>
-                        <option value="PO3">Power of 3</option>
-                        <option value="Diğer">Diğer</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Sözleşme/Lot</label>
-                    <input type="text" id="input-lot" placeholder="Örn: 2, 5, 10" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-slate-400 mb-1">Giriş Fiyatı</label>
-                        <input type="number" step="any" id="input-entry" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Çıkış Fiyatı</label>
-                        <input type="number" step="any" id="input-exit" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-300 font-bold mb-1">Net Kâr / Zarar ($)</label>
-                    <input type="number" step="any" id="input-pl" placeholder="Örn: 450 veya -150" required class="w-full bg-slate-900 border-2 border-slate-600 rounded p-3 text-white font-bold text-lg focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Notlar</label>
-                    <input type="text" id="input-notes" placeholder="Psikolojin, erken çıkma sebebin..." class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
-
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mt-2">
-                    <i class="fa-solid fa-cloud-arrow-up mr-2"></i>Buluta Kaydet
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 glass p-4 rounded-xl">
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Trading Journal & Stats</h1>
+            <div class="mt-4 md:mt-0 flex space-x-3">
+                <button id="login-btn" class="bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-medium transition duration-200">Google ile Giriş</button>
+                <button id="logout-btn" class="bg-red-600 hover:bg-red-700 px-5 py-2 rounded-lg font-medium hidden transition duration-200">Çıkış Yap</button>
+                <button id="settings-btn" class="bg-slate-700 hover:bg-slate-600 px-5 py-2 rounded-lg font-medium hidden transition duration-200 flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Ayarlar
                 </button>
+            </div>
+        </div>
+
+        <div id="warning-area" class="mb-4"></div>
+
+        <!-- Main Content -->
+        <div id="app-content" class="hidden space-y-6">
+            
+            <!-- Top Panel Metrics -->
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Güncel Bakiye</div>
+                    <div class="text-xl font-bold text-blue-400" id="top-balance">$0.00</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Toplam Net P/L</div>
+                    <div class="text-xl font-bold" id="top-netpl">$0.00</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Win Rate</div>
+                    <div class="text-xl font-bold text-emerald-400" id="top-winrate">0%</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Profit Factor</div>
+                    <div class="text-xl font-bold text-emerald-400" id="top-pf">0.00</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Ortalama P/L</div>
+                    <div class="text-xl font-bold" id="top-avgpl">$0.00</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Kalan Drawdown</div>
+                    <div class="text-xl font-bold text-amber-400" id="top-drawdown">$0.00</div>
+                </div>
+                <div class="glass p-4 rounded-xl text-center">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Hedefe Kalan</div>
+                    <div class="text-xl font-bold text-indigo-400" id="top-target">$0.00</div>
+                </div>
+            </div>
+
+            <!-- Charts Area -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="glass p-4 rounded-xl h-80 relative">
+                    <h3 class="text-sm text-slate-400 mb-2">Bakiye Büyüme Eğrisi</h3>
+                    <div class="absolute inset-0 top-10 p-4"><canvas id="lineChart"></canvas></div>
+                </div>
+                <div class="glass p-4 rounded-xl h-80 relative">
+                    <h3 class="text-sm text-slate-400 mb-2">Günlük P/L</h3>
+                    <div class="absolute inset-0 top-10 p-4"><canvas id="barChart"></canvas></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Data Entry Form -->
+                <div class="glass p-6 rounded-xl lg:col-span-1">
+                    <h2 class="text-xl font-bold mb-4 border-b border-slate-700 pb-2">Yeni İşlem Ekle</h2>
+                    <form id="trade-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Tarih / Saat</label>
+                            <input type="datetime-local" id="trade-date" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Parite</label>
+                                <select id="trade-pair" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                                    <option value="NQ">NQ (E-mini Nasdaq)</option>
+                                    <option value="MNQ">MNQ (Micro Nasdaq)</option>
+                                    <option value="ES">ES (E-mini S&P 500)</option>
+                                    <option value="MES">MES (Micro S&P 500)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Yön</label>
+                                <select id="trade-direction" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                                    <option value="Long">Long</option>
+                                    <option value="Short">Short</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Setup (Kurulum)</label>
+                            <input type="text" id="trade-setup" placeholder="Örn: Breakout, BOs" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                        </div>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Giriş</label>
+                                <input type="number" step="0.01" id="trade-entry" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Çıkış</label>
+                                <input type="number" step="0.01" id="trade-exit" required class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-slate-400 mb-1">Lot</label>
+                                <input type="number" step="1" id="trade-lots" required min="1" value="1" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-slate-400 mb-1">Notlar</label>
+                            <textarea id="trade-notes" rows="2" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500"></textarea>
+                        </div>
+                        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-lg shadow-emerald-500/30">
+                            İşlemi Kaydet
+                        </button>
+                    </form>
+                </div>
+
+                <!-- History Table -->
+                <div class="glass p-6 rounded-xl lg:col-span-2 flex flex-col overflow-hidden">
+                    <h2 class="text-xl font-bold mb-4 border-b border-slate-700 pb-2">İşlem Geçmişi</h2>
+                    <div class="overflow-x-auto flex-1">
+                        <table class="w-full text-left border-collapse whitespace-nowrap">
+                            <thead>
+                                <tr class="text-slate-400 text-sm border-b border-slate-700">
+                                    <th class="p-3">Tarih</th>
+                                    <th class="p-3">Parite</th>
+                                    <th class="p-3">Yön</th>
+                                    <th class="p-3">Setup</th>
+                                    <th class="p-3 text-right">Giriş</th>
+                                    <th class="p-3 text-right">Çıkış</th>
+                                    <th class="p-3 text-center">Lot</th>
+                                    <th class="p-3 text-right">Net P/L</th>
+                                    <th class="p-3">Notlar</th>
+                                    <th class="p-3 text-center">İşlem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trade-tbody" class="text-sm">
+                                <!-- JS ile Doldurulacak -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="glass p-6 rounded-2xl w-full max-w-md shadow-2xl border border-slate-600">
+            <h2 class="text-2xl font-bold mb-6 text-white border-b border-slate-700 pb-3">Hesap Parametreleri</h2>
+            <form id="settings-form" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Başlangıç Bakiyesi ($)</label>
+                    <input type="number" id="set-start" required class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Kâr Hedefi / Hedef Bakiye ($)</label>
+                    <input type="number" id="set-target" required class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Max EOD Drawdown Limiti ($)</label>
+                    <input type="number" id="set-drawdown" required class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Günlük Tutarlılık Limiti (%)</label>
+                    <input type="number" step="0.1" id="set-consistency" required class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm text-slate-300 mb-1">Minimum İşlem Günü Sayısı</label>
+                    <input type="number" id="set-mindays" required class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="pt-4 flex space-x-3">
+                    <button type="button" id="close-settings" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">İptal</button>
+                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-200">Kaydet</button>
+                </div>
             </form>
         </div>
-
-        <!-- İşlem Geçmişi Tablosu -->
-        <div class="glass-panel rounded-xl p-5 md:col-span-2 overflow-hidden flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2">
-                <i class="fa-solid fa-list mr-2"></i>İşlem Geçmişi
-            </h2>
-            <div class="overflow-x-auto flex-1">
-                <table class="w-full text-sm text-left whitespace-nowrap">
-                    <thead class="text-xs text-slate-400 uppercase bg-slate-800 rounded">
-                        <tr>
-                            <th class="px-4 py-3 rounded-tl">Tarih</th>
-                            <th class="px-4 py-3">Varlık</th>
-                            <th class="px-4 py-3">Yön/Setup</th>
-                            <th class="px-4 py-3 text-right">P/L ($)</th>
-                            <th class="px-4 py-3 rounded-tr text-center">Aksiyon</th>
-                        </tr>
-                    </thead>
-                    <tbody id="trades-table-body" class="divide-y divide-slate-700/50">
-                        <tr>
-                            <td colspan="5" class="px-4 py-8 text-center text-slate-500">
-                                Yükleniyor veya henüz işlem yok...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
     </div>
-</div>
 
-<!-- Modal UI -->
-<div id="modal-overlay" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
-    <div class="bg-slate-800 border border-slate-600 p-6 rounded-xl max-w-sm w-full mx-4 text-center shadow-2xl">
-        <h3 class="text-xl font-bold text-white mb-2">Emin misin?</h3>
-        <p class="text-slate-400 mb-6">Bu işlemi silmek istediğine emin misin?</p>
-        <div class="flex justify-center space-x-3">
-            <button id="modal-btn-cancel" class="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition">İptal</button>
-            <button id="modal-btn-confirm" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500 transition">Sil</button>
-        </div>
-    </div>
-</div>
+    <!-- Firebase v10 Script Module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, where, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-<!-- Login/Sync Modal -->
-<div id="login-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
-    <div class="bg-slate-800 border border-slate-600 p-6 rounded-xl max-w-sm w-full mx-4 shadow-2xl relative">
-        <button id="login-close" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-times text-lg"></i></button>
-        <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-user-lock mr-2"></i>Bulut Senkronizasyonu</h3>
-        <p class="text-slate-400 text-sm mb-4">Tablet ve telefonda aynı verilere ulaşmak için bir hesap oluştur veya giriş yap.</p>
-        
-        <form id="login-form" class="space-y-4">
-            <div>
-                <label class="block text-slate-400 text-xs mb-1">E-posta</label>
-                <input type="email" id="login-email" required class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none">
-            </div>
-            <div>
-                <label class="block text-slate-400 text-xs mb-1">Şifre (En az 6 hane)</label>
-                <input type="password" id="login-password" required minlength="6" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none">
-            </div>
-            <div id="login-error" class="hidden text-red-400 text-xs font-semibold bg-red-900/30 p-2 rounded"></div>
-            <div class="flex space-x-2 pt-2">
-                <button type="button" id="btn-register" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition font-semibold">Kayıt Ol</button>
-                <button type="submit" id="btn-login" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded transition font-semibold">Giriş Yap</button>
-            </div>
-        </form>
-        
-        <div id="logged-in-view" class="hidden flex-col items-center justify-center space-y-4 py-4">
-            <div class="text-green-400 text-5xl"><i class="fa-solid fa-cloud-check"></i></div>
-            <p class="text-white font-semibold text-lg">Senkronizasyon Aktif!</p>
-            <p id="user-email-display" class="text-slate-400 text-sm bg-slate-900 px-3 py-1 rounded-full"></p>
-            <button id="btn-logout" class="w-full bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-400 py-2 rounded transition mt-4">Çıkış Yap</button>
-        </div>
-    </div>
-</div>
-
-<script type="module">
-    // Halka açık bir Firebase Public Test veritabanı ayarı eklenmiştir
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // Replit testleri için Public Firebase yapılandırması
-    const firebaseConfig = {
-      projectId: "mffu-tracker-public",
-      databaseURL: "https://mffu-tracker-public.firebaseio.com",
-    };
-    
-    // Gerçek Firebase SDK başlatılamazsa yerel depolama (Local Storage) yedeğine düşmek için bir mock hazırlıyoruz
-    let useLocalStorageFallback = true;
-    let userId = 'local-user';
-    let tradesData = [];
-
-    // MFFU Kuralları
-    const RULES = { START_BALANCE: 50000, TARGET_PROFIT: 3000, MAX_DRAWDOWN_LIMIT: 48000, CONSISTENCY_LIMIT: 900, MIN_DAYS: 4 };
-
-    const ui = {
-        form: document.getElementById('trade-form'), date: document.getElementById('input-date'), asset: document.getElementById('input-asset'),
-        direction: document.getElementById('input-direction'), setup: document.getElementById('input-setup'), lot: document.getElementById('input-lot'),
-        entry: document.getElementById('input-entry'), exit: document.getElementById('input-exit'), pl: document.getElementById('input-pl'),
-        notes: document.getElementById('input-notes'), tableBody: document.getElementById('trades-table-body'),
-        metrics: { balance: document.getElementById('metric-balance'), pl: document.getElementById('metric-pl'), target: document.getElementById('metric-target'), dd: document.getElementById('metric-dd'), days: document.getElementById('metric-days') },
-        alert: document.getElementById('alert-container'), modal: { overlay: document.getElementById('modal-overlay'), confirmBtn: document.getElementById('modal-btn-confirm'), cancelBtn: document.getElementById('modal-btn-cancel') },
-        sync: { btnShow: document.getElementById('btn-show-login'), modal: document.getElementById('login-modal'), close: document.getElementById('login-close'), form: document.getElementById('login-form'), email: document.getElementById('login-email'), password: document.getElementById('login-password'), error: document.getElementById('login-error'), btnRegister: document.getElementById('btn-register'), btnLogin: document.getElementById('btn-login'), loggedInView: document.getElementById('logged-in-view'), emailDisplay: document.getElementById('user-email-display'), btnLogout: document.getElementById('btn-logout') }
-    };
-
-    ui.date.valueAsDate = new Date();
-
-    // Local Storage Fallback Sistemi (Veritabanı olmadan da çalışması için)
-    function saveToLocal() {
-        localStorage.setItem(`trades_${userId}`, JSON.stringify(tradesData));
-        renderTable();
-    }
-
-    function loadFromLocal() {
-        const data = localStorage.getItem(`trades_${userId}`);
-        tradesData = data ? JSON.parse(data) : [];
-        renderTable();
-    }
-
-    // Uygulamayı Başlat (Şimdilik Local Storage ile, UI'da bulut gibi davranacak)
-    function initApp() {
-        loadFromLocal();
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et';
-    }
-
-    function renderTable() {
-        ui.tableBody.innerHTML = '';
-        tradesData.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        if (tradesData.length === 0) {
-            ui.tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-500 italic">Henüz işlem bulunmuyor. İlk işlemini yukarıdan ekle.</td></tr>`;
-            calculateMetricsAndRules();
-            return;
-        }
-
-        tradesData.forEach(trade => {
-            const tr = document.createElement('tr');
-            tr.className = "hover:bg-slate-700/50 transition-colors";
-            const plColor = trade.pl > 0 ? 'text-green-400' : (trade.pl < 0 ? 'text-red-400' : 'text-slate-300');
-            const plSign = trade.pl > 0 ? '+' : '';
-            tr.innerHTML = `
-                <td class="px-4 py-3">${formatDate(trade.date)}</td>
-                <td class="px-4 py-3 font-semibold text-slate-200">${trade.asset} <span class="text-xs font-normal text-slate-500 block">${trade.lot} Lot</span></td>
-                <td class="px-4 py-3"><span class="${trade.direction === 'Long' ? 'text-green-400' : 'text-red-400'}">${trade.direction}</span><span class="text-xs text-slate-500 block">${trade.setup}</span></td>
-                <td class="px-4 py-3 text-right font-bold ${plColor}">${plSign}${Number(trade.pl).toFixed(2)}$</td>
-                <td class="px-4 py-3 text-center"><button onclick="window.deleteTradeClick('${trade.id}')" class="text-slate-500 hover:text-red-400 transition" title="İşlemi Sil"><i class="fa-solid fa-trash"></i></button></td>
-            `;
-            ui.tableBody.appendChild(tr);
-        });
-        calculateMetricsAndRules();
-    }
-
-    function calculateMetricsAndRules() {
-        let totalPL = 0; let uniqueDays = new Set(); let dailyPLs = {};
-
-        tradesData.forEach(trade => {
-            const pl = Number(trade.pl);
-            totalPL += pl;
-            uniqueDays.add(trade.date);
-            if (!dailyPLs[trade.date]) dailyPLs[trade.date] = 0;
-            dailyPLs[trade.date] += pl;
-        });
-
-        const currentBalance = RULES.START_BALANCE + totalPL;
-        const daysCount = uniqueDays.size;
-
-        ui.metrics.balance.innerText = `$${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        ui.metrics.pl.innerText = `Net: ${totalPL > 0 ? '+' : ''}${totalPL.toLocaleString('en-US')}$`;
-        ui.metrics.target.innerText = `$${Math.max(0, RULES.TARGET_PROFIT - totalPL).toLocaleString('en-US')}`;
-        ui.metrics.dd.innerText = `$${(currentBalance - RULES.MAX_DRAWDOWN_LIMIT).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        ui.metrics.days.innerText = `${daysCount} / ${RULES.MIN_DAYS}`;
-
-        checkRules(currentBalance, daysCount, dailyPLs);
-    }
-
-    function checkRules(balance, days, dailyPLs) {
-        ui.alert.className = 'rounded-xl p-4 font-semibold text-center shadow-lg transition-all border';
-        
-        if (balance <= RULES.MAX_DRAWDOWN_LIMIT) {
-            ui.alert.innerHTML = `<i class="fa-solid fa-skull mr-2"></i> HESAP PATLADI! Maksimum Drawdown limitini aştın.`;
-            ui.alert.classList.add('bg-red-900/50', 'text-red-200', 'border-red-500', 'block');
-        } else if (balance >= RULES.START_BALANCE + RULES.TARGET_PROFIT && days >= RULES.MIN_DAYS) {
-            ui.alert.innerHTML = `<i class="fa-solid fa-trophy mr-2"></i> TEBRİKLER! Kâr hedefine ulaştın ve 4 günü tamamladın.`;
-            ui.alert.classList.add('bg-green-900/50', 'text-green-200', 'border-green-500', 'block');
-        } else {
-            let maxDailyProfit = 0; let badDay = null;
-            for (const [date, total] of Object.entries(dailyPLs)) {
-                if (total > RULES.CONSISTENCY_LIMIT) { badDay = date; maxDailyProfit = total; break; }
-            }
-            if (badDay) {
-                ui.alert.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i> UYARI: ${formatDate(badDay)} tarihinde $${maxDailyProfit} kâr ederek %30 günlük kâr limitini aştın!`;
-                ui.alert.classList.add('bg-yellow-900/50', 'text-yellow-200', 'border-yellow-500', 'block');
-            } else {
-                ui.alert.classList.add('hidden');
-            }
-        }
-    }
-
-    ui.form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const tradeData = {
-            id: Date.now().toString(),
-            date: ui.date.value, asset: ui.asset.value, direction: ui.direction.value, setup: ui.setup.value, lot: ui.lot.value,
-            entryPrice: Number(ui.entry.value), exitPrice: Number(ui.exit.value), pl: Number(ui.pl.value), notes: ui.notes.value
+        // ==========================================
+        // BURAYA FIREBASE BİLGİLERİNİ GİRİN
+        // ==========================================
+        const firebaseConfig = {
+            // apiKey: "YOUR_API_KEY",
+            // authDomain: "YOUR_AUTH_DOMAIN",
+            // projectId: "YOUR_PROJECT_ID",
+            // storageBucket: "YOUR_STORAGE_BUCKET",
+            // messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            // appId: "YOUR_APP_ID"
         };
-        tradesData.push(tradeData);
-        saveToLocal();
+
+        const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
         
-        ui.pl.value = ''; ui.entry.value = ''; ui.exit.value = ''; ui.notes.value = '';
-        showToast("İşlem başarıyla kaydedildi.");
-    });
+        let app, auth, db, currentUser = null;
+        let unsubscribeTrades = null;
 
-    let tradeToDelete = null;
-    window.deleteTradeClick = function(id) { tradeToDelete = id; ui.modal.overlay.classList.remove('hidden'); ui.modal.overlay.classList.add('flex'); };
-    ui.modal.cancelBtn.addEventListener('click', () => { tradeToDelete = null; ui.modal.overlay.classList.add('hidden'); ui.modal.overlay.classList.remove('flex'); });
-    ui.modal.confirmBtn.addEventListener('click', () => {
-        tradesData = tradesData.filter(t => t.id !== tradeToDelete);
-        saveToLocal();
-        showToast("İşlem silindi.");
-        ui.modal.overlay.classList.add('hidden'); ui.modal.overlay.classList.remove('flex');
-    });
+        // Varsayılan Ayarlar
+        let settings = {
+            startingBalance: 50000,
+            targetBalance: 53000,
+            maxDrawdown: 48000,
+            consistencyPercent: 30,
+            minDays: 4
+        };
+        let trades = [];
 
-    function formatDate(dateStr) { return new Date(dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }); }
-    function showToast(msg) {
-        const toast = document.createElement('div');
-        toast.className = `fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-3 rounded shadow-lg z-50 transition-opacity`;
-        toast.innerText = msg; document.body.appendChild(toast);
-        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2000);
-    }
+        // Chart Instance referansları
+        let lineChart = null;
+        let barChart = null;
+        Chart.defaults.color = '#94a3b8';
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
 
-    // Login UI Simulation
-    ui.sync.btnShow.addEventListener('click', () => { ui.sync.modal.classList.remove('hidden'); ui.sync.modal.classList.add('flex'); });
-    ui.sync.close.addEventListener('click', () => { ui.sync.modal.classList.add('hidden'); ui.sync.modal.classList.remove('flex'); });
-    
-    ui.sync.btnRegister.addEventListener('click', () => {
-        if(ui.sync.email.value && ui.sync.password.value.length >= 6) {
-            userId = ui.sync.email.value;
-            loadFromLocal();
-            ui.sync.form.classList.add('hidden'); ui.sync.loggedInView.classList.remove('hidden'); ui.sync.loggedInView.classList.add('flex');
-            ui.sync.emailDisplay.innerText = userId;
-            ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-check mr-1"></i>Bağlandı';
-            ui.sync.btnShow.classList.replace('text-blue-400', 'text-green-400');
-            showToast("Hesap bağlandı!");
+        // Firebase Başlatma
+        if (isFirebaseConfigured) {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            const provider = new GoogleAuthProvider();
+            
+            document.getElementById('login-btn').addEventListener('click', () => {
+                signInWithPopup(auth, provider).catch(err => alert("Giriş hatası: " + err.message));
+            });
+            
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                signOut(auth).then(() => {
+                    trades = [];
+                    if(unsubscribeTrades) unsubscribeTrades();
+                    updateUI();
+                });
+            });
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('login-btn').classList.add('hidden');
+                    document.getElementById('logout-btn').classList.remove('hidden');
+                    document.getElementById('settings-btn').classList.remove('hidden');
+                    document.getElementById('app-content').classList.remove('hidden');
+                    loadSettings();
+                    listenTrades();
+                } else {
+                    currentUser = null;
+                    document.getElementById('login-btn').classList.remove('hidden');
+                    document.getElementById('logout-btn').classList.add('hidden');
+                    document.getElementById('settings-btn').classList.add('hidden');
+                    document.getElementById('app-content').classList.add('hidden');
+                }
+            });
+        } else {
+            // FIREBASE YOKSA - LOKAL DEMO MODU
+            console.warn("Firebase ayarları girilmediği için lokal demo modunda çalışıyor.");
+            document.getElementById('login-btn').classList.add('hidden');
+            document.getElementById('settings-btn').classList.remove('hidden');
+            document.getElementById('app-content').classList.remove('hidden');
+            
+            populateSettingsForm();
+            resetTradeDate();
+            updateUI();
         }
-    });
 
-    ui.sync.form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        userId = ui.sync.email.value;
-        loadFromLocal();
-        ui.sync.form.classList.add('hidden'); ui.sync.loggedInView.classList.remove('hidden'); ui.sync.loggedInView.classList.add('flex');
-        ui.sync.emailDisplay.innerText = userId;
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-check mr-1"></i>Bağlandı';
-        ui.sync.btnShow.classList.replace('text-blue-400', 'text-green-400');
-        showToast("Giriş yapıldı!");
-    });
-
-    ui.sync.btnLogout.addEventListener('click', () => {
-        userId = 'local-user';
-        loadFromLocal();
-        ui.sync.form.classList.remove('hidden'); ui.sync.loggedInView.classList.add('hidden'); ui.sync.loggedInView.classList.remove('flex');
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et';
-        ui.sync.btnShow.classList.replace('text-green-400', 'text-blue-400');
-        ui.sync.email.value = ''; ui.sync.password.value = '';
-        ui.sync.modal.classList.add('hidden'); ui.sync.modal.classList.remove('flex');
-    });
-
-    initApp();
-
-</script>
-</body>
-</html><!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MFFU 50K Rapid EOD Tracker</title>
-    <!-- Tailwind CSS for mobile-first styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        /* Gizli scrollbar tasarımı */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-    </style>
-</head>
-<body class="min-h-screen p-4 md:p-8">
-
-<div class="max-w-4xl mx-auto space-y-6">
-    
-    <!-- Başlık -->
-    <div class="text-center space-y-2 relative">
-        <button id="btn-show-login" class="absolute right-0 top-0 text-xs bg-slate-800 hover:bg-slate-700 text-blue-400 px-3 py-1.5 rounded-full border border-blue-500/30 transition shadow-lg flex items-center">
-            <i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et
-        </button>
-        <h1 class="text-2xl md:text-3xl font-bold text-blue-400">
-            <i class="fa-solid fa-chart-line mr-2"></i>MFFU 50K Tracker
-        </h1>
-        <p class="text-slate-400 text-sm">Rapid EOD (Gün Sonu Drawdown) Simülatörü</p>
-    </div>
-
-    <!-- Bildirim Alanı (Kurallar İçin) -->
-    <div id="alert-container" class="hidden rounded-xl p-4 font-semibold text-center shadow-lg transition-all"></div>
-
-    <!-- Dashboard Metrikleri -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Güncel Bakiye</p>
-            <p id="metric-balance" class="text-xl md:text-2xl font-bold text-white">$50,000</p>
-            <p id="metric-pl" class="text-xs text-slate-400 mt-1">Net: $0</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Kalan Hedef</p>
-            <p id="metric-target" class="text-xl md:text-2xl font-bold text-green-400">$3,000</p>
-            <p class="text-xs text-slate-500 mt-1">Hedef: $53,000</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Kalan Drawdown</p>
-            <p id="metric-dd" class="text-xl md:text-2xl font-bold text-red-400">$2,000</p>
-            <p class="text-xs text-slate-500 mt-1">Sınır: $48,000</p>
-        </div>
-        <div class="glass-panel rounded-xl p-4 text-center">
-            <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">İşlem Günü</p>
-            <p id="metric-days" class="text-xl md:text-2xl font-bold text-blue-300">0 / 4</p>
-            <p class="text-xs text-slate-500 mt-1">Farklı Gün</p>
-        </div>
-    </div>
-
-    <!-- Form ve Tablo Alanı -->
-    <div class="grid md:grid-cols-3 gap-6">
+        // ==========================================
+        // UI ETKİLEŞİMLERİ
+        // ==========================================
         
-        <!-- Yeni İşlem Formu -->
-        <div class="glass-panel rounded-xl p-5 md:col-span-1">
-            <h2 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2">
-                <i class="fa-solid fa-plus mr-2"></i>Yeni İşlem
-            </h2>
-            <form id="trade-form" class="space-y-4 text-sm">
+        function resetTradeDate() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('trade-date').value = now.toISOString().slice(0, 16);
+        }
+
+        // Modal Kontrolleri
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            populateSettingsForm();
+            document.getElementById('settings-modal').classList.replace('hidden', 'flex');
+        });
+        document.getElementById('close-settings').addEventListener('click', () => {
+            document.getElementById('settings-modal').classList.replace('flex', 'hidden');
+        });
+
+        // Form Submit (Ayarlar)
+        document.getElementById('settings-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            settings.startingBalance = parseFloat(document.getElementById('set-start').value);
+            settings.targetBalance = parseFloat(document.getElementById('set-target').value);
+            settings.maxDrawdown = parseFloat(document.getElementById('set-drawdown').value);
+            settings.consistencyPercent = parseFloat(document.getElementById('set-consistency').value);
+            settings.minDays = parseInt(document.getElementById('set-mindays').value);
+            
+            if (isFirebaseConfigured && db && currentUser) {
+                try {
+                    await setDoc(doc(db, 'settings', currentUser.uid), settings);
+                } catch (err) {
+                    console.error("Ayarlar kaydedilemedi", err);
+                }
+            }
+            
+            document.getElementById('settings-modal').classList.replace('flex', 'hidden');
+            updateUI();
+        });
+
+        function populateSettingsForm() {
+            document.getElementById('set-start').value = settings.startingBalance;
+            document.getElementById('set-target').value = settings.targetBalance;
+            document.getElementById('set-drawdown').value = settings.maxDrawdown;
+            document.getElementById('set-consistency').value = settings.consistencyPercent;
+            document.getElementById('set-mindays').value = settings.minDays;
+        }
+
+        // İşlem Ekleme
+        document.getElementById('trade-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (isFirebaseConfigured && !currentUser) {
+                alert('Lütfen önce giriş yapın.');
+                return;
+            }
+
+            const date = document.getElementById('trade-date').value;
+            const pair = document.getElementById('trade-pair').value;
+            const direction = document.getElementById('trade-direction').value;
+            const setup = document.getElementById('trade-setup').value;
+            const entry = parseFloat(document.getElementById('trade-entry').value);
+            const exit = parseFloat(document.getElementById('trade-exit').value);
+            const lots = parseFloat(document.getElementById('trade-lots').value);
+            const notes = document.getElementById('trade-notes').value;
+
+            // Kâr/Zarar (P/L) Hesaplaması
+            const multipliers = { NQ: 20, MNQ: 2, ES: 50, MES: 5 };
+            const pt = multipliers[pair] || 0;
+            let pl = 0;
+            if (direction === 'Long') {
+                pl = (exit - entry) * pt * lots;
+            } else {
+                pl = (entry - exit) * pt * lots;
+            }
+            
+            const tradeData = {
+                userId: currentUser ? currentUser.uid : 'local-user',
+                date: date,
+                pair, direction, setup, entry, exit, lots, notes, pl,
+                createdAt: new Date().toISOString()
+            };
+
+            if (isFirebaseConfigured && db && currentUser) {
+                try {
+                    await addDoc(collection(db, 'trades'), tradeData);
+                } catch (err) {
+                    console.error("İşlem kaydedilemedi", err);
+                    alert('Kaydedilirken hata oluştu.');
+                }
+            } else {
+                // Lokal Mod
+                tradeData.id = Date.now().toString();
+                trades.push(tradeData);
+                updateUI();
+            }
+            
+            // Formu sıfırlayıp tarihi tekrar şimdiki zamana ayarla
+            e.target.reset();
+            resetTradeDate();
+        });
+
+        // ==========================================
+        // FIREBASE İŞLEMLERİ (OKUMA / DİNLEME)
+        // ==========================================
+        async function loadSettings() {
+            if (!isFirebaseConfigured || !db || !currentUser) return;
+            try {
+                const docSnap = await getDoc(doc(db, 'settings', currentUser.uid));
+                if (docSnap.exists()) {
+                    settings = { ...settings, ...docSnap.data() };
+                }
+                updateUI();
+            } catch(e) { console.error(e); }
+        }
+
+        function listenTrades() {
+            if (!isFirebaseConfigured || !db || !currentUser) return;
+            const q = query(collection(db, 'trades'), where('userId', '==', currentUser.uid));
+            unsubscribeTrades = onSnapshot(q, (snapshot) => {
+                trades = [];
+                snapshot.forEach(doc => {
+                    trades.push({ id: doc.id, ...doc.data() });
+                });
+                updateUI();
+            });
+        }
+
+        window.deleteTrade = async function(id) {
+            if (confirm("Bu işlemi silmek istediğinize emin misiniz?")) {
+                if (isFirebaseConfigured && db) {
+                    await deleteDoc(doc(db, 'trades', id));
+                } else {
+                    trades = trades.filter(t => t.id !== id);
+                    updateUI();
+                }
+            }
+        }
+
+        // ==========================================
+        // UI & MATEMATİK & GRAFİK MOTORU
+        // ==========================================
+        function updateUI() {
+            let currentBalance = settings.startingBalance;
+            let totalNetPL = 0;
+            let grossProfit = 0;
+            let grossLoss = 0;
+            let winningTrades = 0;
+            let isBlown = false;
+            
+            // Günlük bazda P/L takibi (Tutarlılık ve Min Gün için)
+            let dailyPL = {};
+            
+            // İşlemleri tarihe göre eskiden yeniye sıralayalım
+            let sortedTrades = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            let lineLabels = ['Başlangıç'];
+            let lineData = [settings.startingBalance];
+            
+            // Eğer daha hiç işlem yokken bile başlangıç bakiyesi max drawdown altındaysa hesap patlaktır.
+            if (currentBalance < settings.maxDrawdown) {
+                isBlown = true;
+            }
+
+            sortedTrades.forEach(t => {
+                totalNetPL += t.pl;
+                currentBalance += t.pl;
                 
-                <div>
-                    <label class="block text-slate-400 mb-1">Tarih</label>
-                    <input type="date" id="input-date" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
+                if (currentBalance < settings.maxDrawdown) {
+                    isBlown = true;
+                }
+                
+                if (t.pl > 0) {
+                    grossProfit += t.pl;
+                    winningTrades++;
+                } else if (t.pl < 0) {
+                    grossLoss += Math.abs(t.pl);
+                }
+                
+                let dateKey = t.date.split('T')[0];
+                if (!dailyPL[dateKey]) dailyPL[dateKey] = 0;
+                dailyPL[dateKey] += t.pl;
+                
+                let timeStr = new Date(t.date).toLocaleDateString() + " " + new Date(t.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                lineLabels.push(timeStr);
+                lineData.push(currentBalance);
+            });
+            
+            let barLabels = [];
+            let barData = [];
+            
+            // Günleri sırala
+            Object.keys(dailyPL).sort((a,b) => new Date(a) - new Date(b)).forEach(d => {
+                barLabels.push(d);
+                barData.push(dailyPL[d]);
+            });
+            
+            let totalTrades = trades.length;
+            let winRate = totalTrades > 0 ? (winningTrades / totalTrades * 100).toFixed(1) : 0;
+            let profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : '0.00');
+            let avgPL = totalTrades > 0 ? (totalNetPL / totalTrades).toFixed(2) : 0;
+            
+            let remainingDrawdown = currentBalance - settings.maxDrawdown;
+            let amountToTarget = settings.targetBalance - currentBalance;
+            
+            // Panel Güncellemeleri
+            document.getElementById('top-balance').innerText = formatMoney(currentBalance);
+            
+            let netPLel = document.getElementById('top-netpl');
+            netPLel.innerText = (totalNetPL >= 0 ? '+' : '') + formatMoney(totalNetPL);
+            netPLel.className = 'text-xl font-bold ' + (totalNetPL >= 0 ? 'text-emerald-400' : 'text-red-400');
+            
+            document.getElementById('top-winrate').innerText = `${winRate}%`;
+            document.getElementById('top-pf').innerText = `${profitFactor}`;
+            
+            let avgPLel = document.getElementById('top-avgpl');
+            avgPLel.innerText = (avgPL >= 0 ? '+' : '') + formatMoney(avgPL);
+            avgPLel.className = 'text-xl font-bold ' + (avgPL >= 0 ? 'text-emerald-400' : 'text-red-400');
+            
+            let ddEl = document.getElementById('top-drawdown');
+            ddEl.innerText = formatMoney(remainingDrawdown);
+            ddEl.className = 'text-xl font-bold ' + (remainingDrawdown >= 0 ? 'text-emerald-400' : 'text-red-500');
 
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-slate-400 mb-1">Parite</label>
-                        <select id="input-asset" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                            <option value="NQ">NQ (Mini)</option>
-                            <option value="MNQ">MNQ (Micro)</option>
-                            <option value="ES">ES (Mini)</option>
-                            <option value="MES">MES (Micro)</option>
-                            <option value="EURUSD">EURUSD</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Yön</label>
-                        <select id="input-direction" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                            <option value="Long">Long 📈</option>
-                            <option value="Short">Short 📉</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Setup Türü</label>
-                    <select id="input-setup" class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                        <option value="FVG">FVG Dolumu</option>
-                        <option value="Liquidity Sweep">Likidite Avı</option>
-                        <option value="PO3">Power of 3</option>
-                        <option value="Diğer">Diğer</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Sözleşme/Lot</label>
-                    <input type="text" id="input-lot" placeholder="Örn: 2, 5, 10" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-slate-400 mb-1">Giriş Fiyatı</label>
-                        <input type="number" step="any" id="input-entry" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 mb-1">Çıkış Fiyatı</label>
-                        <input type="number" step="any" id="input-exit" required class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-slate-300 font-bold mb-1">Net Kâr / Zarar ($)</label>
-                    <input type="number" step="any" id="input-pl" placeholder="Örn: 450 veya -150" required class="w-full bg-slate-900 border-2 border-slate-600 rounded p-3 text-white font-bold text-lg focus:outline-none focus:border-blue-500">
-                </div>
-
-                <div>
-                    <label class="block text-slate-400 mb-1">Notlar</label>
-                    <input type="text" id="input-notes" placeholder="Psikolojin, erken çıkma sebebin..." class="w-full bg-slate-800 border border-slate-600 rounded p-2 text-white focus:outline-none focus:border-blue-500">
-                </div>
-
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded transition-colors mt-2">
-                    <i class="fa-solid fa-cloud-arrow-up mr-2"></i>Buluta Kaydet
-                </button>
-            </form>
-        </div>
-
-        <!-- İşlem Geçmişi Tablosu -->
-        <div class="glass-panel rounded-xl p-5 md:col-span-2 overflow-hidden flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 border-b border-slate-700 pb-2">
-                <i class="fa-solid fa-list mr-2"></i>İşlem Geçmişi
-            </h2>
-            <div class="overflow-x-auto flex-1">
-                <table class="w-full text-sm text-left whitespace-nowrap">
-                    <thead class="text-xs text-slate-400 uppercase bg-slate-800 rounded">
-                        <tr>
-                            <th class="px-4 py-3 rounded-tl">Tarih</th>
-                            <th class="px-4 py-3">Varlık</th>
-                            <th class="px-4 py-3">Yön/Setup</th>
-                            <th class="px-4 py-3 text-right">P/L ($)</th>
-                            <th class="px-4 py-3 rounded-tr text-center">Aksiyon</th>
-                        </tr>
-                    </thead>
-                    <tbody id="trades-table-body" class="divide-y divide-slate-700/50">
-                        <tr>
-                            <td colspan="5" class="px-4 py-8 text-center text-slate-500">
-                                Yükleniyor veya henüz işlem yok...
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal UI -->
-<div id="modal-overlay" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
-    <div class="bg-slate-800 border border-slate-600 p-6 rounded-xl max-w-sm w-full mx-4 text-center shadow-2xl">
-        <h3 class="text-xl font-bold text-white mb-2">Emin misin?</h3>
-        <p class="text-slate-400 mb-6">Bu işlemi silmek istediğine emin misin?</p>
-        <div class="flex justify-center space-x-3">
-            <button id="modal-btn-cancel" class="px-4 py-2 rounded bg-slate-700 text-white hover:bg-slate-600 transition">İptal</button>
-            <button id="modal-btn-confirm" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-500 transition">Sil</button>
-        </div>
-    </div>
-</div>
-
-<!-- Login/Sync Modal -->
-<div id="login-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
-    <div class="bg-slate-800 border border-slate-600 p-6 rounded-xl max-w-sm w-full mx-4 shadow-2xl relative">
-        <button id="login-close" class="absolute top-4 right-4 text-slate-400 hover:text-white"><i class="fa-solid fa-times text-lg"></i></button>
-        <h3 class="text-xl font-bold text-white mb-2"><i class="fa-solid fa-user-lock mr-2"></i>Bulut Senkronizasyonu</h3>
-        <p class="text-slate-400 text-sm mb-4">Tablet ve telefonda aynı verilere ulaşmak için bir hesap oluştur veya giriş yap.</p>
-        
-        <form id="login-form" class="space-y-4">
-            <div>
-                <label class="block text-slate-400 text-xs mb-1">E-posta</label>
-                <input type="email" id="login-email" required class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none">
-            </div>
-            <div>
-                <label class="block text-slate-400 text-xs mb-1">Şifre (En az 6 hane)</label>
-                <input type="password" id="login-password" required minlength="6" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white focus:border-blue-500 outline-none">
-            </div>
-            <div id="login-error" class="hidden text-red-400 text-xs font-semibold bg-red-900/30 p-2 rounded"></div>
-            <div class="flex space-x-2 pt-2">
-                <button type="button" id="btn-register" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded transition font-semibold">Kayıt Ol</button>
-                <button type="submit" id="btn-login" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded transition font-semibold">Giriş Yap</button>
-            </div>
-        </form>
-        
-        <div id="logged-in-view" class="hidden flex-col items-center justify-center space-y-4 py-4">
-            <div class="text-green-400 text-5xl"><i class="fa-solid fa-cloud-check"></i></div>
-            <p class="text-white font-semibold text-lg">Senkronizasyon Aktif!</p>
-            <p id="user-email-display" class="text-slate-400 text-sm bg-slate-900 px-3 py-1 rounded-full"></p>
-            <button id="btn-logout" class="w-full bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 text-red-400 py-2 rounded transition mt-4">Çıkış Yap</button>
-        </div>
-    </div>
-</div>
-
-<script type="module">
-    // Halka açık bir Firebase Public Test veritabanı ayarı eklenmiştir
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, query, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-    // Replit testleri için Public Firebase yapılandırması
-    const firebaseConfig = {
-      projectId: "mffu-tracker-public",
-      databaseURL: "https://mffu-tracker-public.firebaseio.com",
-    };
-    
-    // Gerçek Firebase SDK başlatılamazsa yerel depolama (Local Storage) yedeğine düşmek için bir mock hazırlıyoruz
-    let useLocalStorageFallback = true;
-    let userId = 'local-user';
-    let tradesData = [];
-
-    // MFFU Kuralları
-    const RULES = { START_BALANCE: 50000, TARGET_PROFIT: 3000, MAX_DRAWDOWN_LIMIT: 48000, CONSISTENCY_LIMIT: 900, MIN_DAYS: 4 };
-
-    const ui = {
-        form: document.getElementById('trade-form'), date: document.getElementById('input-date'), asset: document.getElementById('input-asset'),
-        direction: document.getElementById('input-direction'), setup: document.getElementById('input-setup'), lot: document.getElementById('input-lot'),
-        entry: document.getElementById('input-entry'), exit: document.getElementById('input-exit'), pl: document.getElementById('input-pl'),
-        notes: document.getElementById('input-notes'), tableBody: document.getElementById('trades-table-body'),
-        metrics: { balance: document.getElementById('metric-balance'), pl: document.getElementById('metric-pl'), target: document.getElementById('metric-target'), dd: document.getElementById('metric-dd'), days: document.getElementById('metric-days') },
-        alert: document.getElementById('alert-container'), modal: { overlay: document.getElementById('modal-overlay'), confirmBtn: document.getElementById('modal-btn-confirm'), cancelBtn: document.getElementById('modal-btn-cancel') },
-        sync: { btnShow: document.getElementById('btn-show-login'), modal: document.getElementById('login-modal'), close: document.getElementById('login-close'), form: document.getElementById('login-form'), email: document.getElementById('login-email'), password: document.getElementById('login-password'), error: document.getElementById('login-error'), btnRegister: document.getElementById('btn-register'), btnLogin: document.getElementById('btn-login'), loggedInView: document.getElementById('logged-in-view'), emailDisplay: document.getElementById('user-email-display'), btnLogout: document.getElementById('btn-logout') }
-    };
-
-    ui.date.valueAsDate = new Date();
-
-    // Local Storage Fallback Sistemi (Veritabanı olmadan da çalışması için)
-    function saveToLocal() {
-        localStorage.setItem(`trades_${userId}`, JSON.stringify(tradesData));
-        renderTable();
-    }
-
-    function loadFromLocal() {
-        const data = localStorage.getItem(`trades_${userId}`);
-        tradesData = data ? JSON.parse(data) : [];
-        renderTable();
-    }
-
-    // Uygulamayı Başlat (Şimdilik Local Storage ile, UI'da bulut gibi davranacak)
-    function initApp() {
-        loadFromLocal();
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et';
-    }
-
-    function renderTable() {
-        ui.tableBody.innerHTML = '';
-        tradesData.sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        if (tradesData.length === 0) {
-            ui.tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-500 italic">Henüz işlem bulunmuyor. İlk işlemini yukarıdan ekle.</td></tr>`;
-            calculateMetricsAndRules();
-            return;
-        }
-
-        tradesData.forEach(trade => {
-            const tr = document.createElement('tr');
-            tr.className = "hover:bg-slate-700/50 transition-colors";
-            const plColor = trade.pl > 0 ? 'text-green-400' : (trade.pl < 0 ? 'text-red-400' : 'text-slate-300');
-            const plSign = trade.pl > 0 ? '+' : '';
-            tr.innerHTML = `
-                <td class="px-4 py-3">${formatDate(trade.date)}</td>
-                <td class="px-4 py-3 font-semibold text-slate-200">${trade.asset} <span class="text-xs font-normal text-slate-500 block">${trade.lot} Lot</span></td>
-                <td class="px-4 py-3"><span class="${trade.direction === 'Long' ? 'text-green-400' : 'text-red-400'}">${trade.direction}</span><span class="text-xs text-slate-500 block">${trade.setup}</span></td>
-                <td class="px-4 py-3 text-right font-bold ${plColor}">${plSign}${Number(trade.pl).toFixed(2)}$</td>
-                <td class="px-4 py-3 text-center"><button onclick="window.deleteTradeClick('${trade.id}')" class="text-slate-500 hover:text-red-400 transition" title="İşlemi Sil"><i class="fa-solid fa-trash"></i></button></td>
-            `;
-            ui.tableBody.appendChild(tr);
-        });
-        calculateMetricsAndRules();
-    }
-
-    function calculateMetricsAndRules() {
-        let totalPL = 0; let uniqueDays = new Set(); let dailyPLs = {};
-
-        tradesData.forEach(trade => {
-            const pl = Number(trade.pl);
-            totalPL += pl;
-            uniqueDays.add(trade.date);
-            if (!dailyPLs[trade.date]) dailyPLs[trade.date] = 0;
-            dailyPLs[trade.date] += pl;
-        });
-
-        const currentBalance = RULES.START_BALANCE + totalPL;
-        const daysCount = uniqueDays.size;
-
-        ui.metrics.balance.innerText = `$${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        ui.metrics.pl.innerText = `Net: ${totalPL > 0 ? '+' : ''}${totalPL.toLocaleString('en-US')}$`;
-        ui.metrics.target.innerText = `$${Math.max(0, RULES.TARGET_PROFIT - totalPL).toLocaleString('en-US')}`;
-        ui.metrics.dd.innerText = `$${(currentBalance - RULES.MAX_DRAWDOWN_LIMIT).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-        ui.metrics.days.innerText = `${daysCount} / ${RULES.MIN_DAYS}`;
-
-        checkRules(currentBalance, daysCount, dailyPLs);
-    }
-
-    function checkRules(balance, days, dailyPLs) {
-        ui.alert.className = 'rounded-xl p-4 font-semibold text-center shadow-lg transition-all border';
-        
-        if (balance <= RULES.MAX_DRAWDOWN_LIMIT) {
-            ui.alert.innerHTML = `<i class="fa-solid fa-skull mr-2"></i> HESAP PATLADI! Maksimum Drawdown limitini aştın.`;
-            ui.alert.classList.add('bg-red-900/50', 'text-red-200', 'border-red-500', 'block');
-        } else if (balance >= RULES.START_BALANCE + RULES.TARGET_PROFIT && days >= RULES.MIN_DAYS) {
-            ui.alert.innerHTML = `<i class="fa-solid fa-trophy mr-2"></i> TEBRİKLER! Kâr hedefine ulaştın ve 4 günü tamamladın.`;
-            ui.alert.classList.add('bg-green-900/50', 'text-green-200', 'border-green-500', 'block');
-        } else {
-            let maxDailyProfit = 0; let badDay = null;
-            for (const [date, total] of Object.entries(dailyPLs)) {
-                if (total > RULES.CONSISTENCY_LIMIT) { badDay = date; maxDailyProfit = total; break; }
-            }
-            if (badDay) {
-                ui.alert.innerHTML = `<i class="fa-solid fa-triangle-exclamation mr-2"></i> UYARI: ${formatDate(badDay)} tarihinde $${maxDailyProfit} kâr ederek %30 günlük kâr limitini aştın!`;
-                ui.alert.classList.add('bg-yellow-900/50', 'text-yellow-200', 'border-yellow-500', 'block');
+            let targetEl = document.getElementById('top-target');
+            if (amountToTarget <= 0) {
+                targetEl.innerText = "Ulaşıldı!";
+                targetEl.className = "text-xl font-bold text-emerald-400";
             } else {
-                ui.alert.classList.add('hidden');
+                targetEl.innerText = formatMoney(amountToTarget);
+                targetEl.className = "text-xl font-bold text-indigo-400";
+            }
+
+            // Kural Motoru (Uyarılar)
+            let warningArea = document.getElementById('warning-area');
+            warningArea.innerHTML = '';
+            
+            // 1. Hesap Patladı (EOD)
+            if (isBlown) {
+                warningArea.innerHTML += `
+                    <div class="bg-red-500/20 border border-red-500 text-red-100 p-4 rounded-xl mb-3 flex items-center justify-center font-bold text-lg animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+                        ⚠️ HESAP PATLADI! Bakiye EOD Limitinin (${formatMoney(settings.maxDrawdown)}) altına düştü!
+                    </div>`;
+            }
+            
+            // 2. Tutarlılık İhlali
+            let targetNetProfit = settings.targetBalance - settings.startingBalance;
+            let consistencyLimitValue = targetNetProfit * (settings.consistencyPercent / 100);
+            
+            let consistencyViolationDays = Object.keys(dailyPL).filter(d => dailyPL[d] > consistencyLimitValue);
+            if (consistencyViolationDays.length > 0) {
+                warningArea.innerHTML += `
+                    <div class="bg-amber-500/20 border border-amber-500 text-amber-200 p-4 rounded-xl mb-3 flex items-center justify-center font-bold shadow-[0_0_15px_rgba(245,158,11,0.2)] text-center">
+                        ⚠️ TUTARLILIK İHLALİ! Belirlenen limit (${formatMoney(consistencyLimitValue)}) şu günlerde aşıldı: ${consistencyViolationDays.join(', ')}
+                    </div>`;
+            }
+            
+            // 3. Başarı Durumu (Geçti)
+            let uniqueDaysCount = Object.keys(dailyPL).length;
+            let hasPassed = (!isBlown && uniqueDaysCount >= settings.minDays && currentBalance >= settings.targetBalance);
+            
+            if (hasPassed) {
+                warningArea.innerHTML += `
+                    <div class="bg-emerald-500/20 border border-emerald-500 text-emerald-200 p-4 rounded-xl mb-3 flex flex-col items-center justify-center font-bold text-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] text-center transition-all">
+                        <span>🎉 TEBRİKLER, GEÇTİNİZ! 🎉</span>
+                        <span class="text-sm font-normal mt-1 opacity-90">Hedef Bakiye ve Minimum ${settings.minDays} İşlem Günü kuralı sağlandı.</span>
+                    </div>`;
+                
+                if (!window.confettiFired) {
+                    if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+                    window.confettiFired = true;
+                }
+            } else {
+                window.confettiFired = false;
+            }
+
+            // Tabloyu Güncelle
+            renderTable(sortedTrades);
+            
+            // Grafikleri Güncelle
+            updateCharts(lineLabels, lineData, barLabels, barData);
+        }
+
+        function renderTable(sortedTrades) {
+            const tbody = document.getElementById('trade-tbody');
+            tbody.innerHTML = '';
+            
+            // Tabloda en yeniyi en üstte göstermek için tersine çeviriyoruz
+            [...sortedTrades].reverse().forEach(t => {
+                let isProfit = t.pl >= 0;
+                let tr = document.createElement('tr');
+                tr.className = "border-b border-slate-700/50 hover:bg-slate-800/50 transition duration-150";
+                tr.innerHTML = `
+                    <td class="p-3 whitespace-nowrap">${new Date(t.date).toLocaleDateString()} <span class="text-xs text-slate-500 ml-1">${new Date(t.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></td>
+                    <td class="p-3"><span class="bg-slate-700 px-2 py-1 rounded text-xs font-semibold">${t.pair}</span></td>
+                    <td class="p-3"><span class="${t.direction==='Long'?'text-blue-400':'text-fuchsia-400'} font-medium">${t.direction}</span></td>
+                    <td class="p-3">${t.setup}</td>
+                    <td class="p-3 text-right">${t.entry}</td>
+                    <td class="p-3 text-right">${t.exit}</td>
+                    <td class="p-3 text-center">${t.lots}</td>
+                    <td class="p-3 font-bold text-right ${isProfit ? 'text-emerald-400' : 'text-red-400'}">${isProfit ? '+' : ''}${formatMoney(t.pl)}</td>
+                    <td class="p-3 max-w-[150px] truncate text-slate-400" title="${t.notes || ''}">${t.notes || '-'}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="deleteTrade('${t.id}')" class="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            if (sortedTrades.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">Henüz işlem bulunmuyor.</td></tr>`;
             }
         }
-    }
 
-    ui.form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const tradeData = {
-            id: Date.now().toString(),
-            date: ui.date.value, asset: ui.asset.value, direction: ui.direction.value, setup: ui.setup.value, lot: ui.lot.value,
-            entryPrice: Number(ui.entry.value), exitPrice: Number(ui.exit.value), pl: Number(ui.pl.value), notes: ui.notes.value
-        };
-        tradesData.push(tradeData);
-        saveToLocal();
-        
-        ui.pl.value = ''; ui.entry.value = ''; ui.exit.value = ''; ui.notes.value = '';
-        showToast("İşlem başarıyla kaydedildi.");
-    });
+        function updateCharts(lineLabels, lineData, barLabels, barData) {
+            // Line Chart
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            if (lineChart) lineChart.destroy();
+            lineChart = new Chart(lineCtx, {
+                type: 'line',
+                data: {
+                    labels: lineLabels,
+                    datasets: [{
+                        label: 'Bakiye ($)',
+                        data: lineData,
+                        borderColor: '#3b82f6', // blue-500
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6'
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { display: false } }
+                    }
+                }
+            });
 
-    let tradeToDelete = null;
-    window.deleteTradeClick = function(id) { tradeToDelete = id; ui.modal.overlay.classList.remove('hidden'); ui.modal.overlay.classList.add('flex'); };
-    ui.modal.cancelBtn.addEventListener('click', () => { tradeToDelete = null; ui.modal.overlay.classList.add('hidden'); ui.modal.overlay.classList.remove('flex'); });
-    ui.modal.confirmBtn.addEventListener('click', () => {
-        tradesData = tradesData.filter(t => t.id !== tradeToDelete);
-        saveToLocal();
-        showToast("İşlem silindi.");
-        ui.modal.overlay.classList.add('hidden'); ui.modal.overlay.classList.remove('flex');
-    });
-
-    function formatDate(dateStr) { return new Date(dateStr).toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' }); }
-    function showToast(msg) {
-        const toast = document.createElement('div');
-        toast.className = `fixed bottom-4 right-4 bg-blue-600 text-white px-6 py-3 rounded shadow-lg z-50 transition-opacity`;
-        toast.innerText = msg; document.body.appendChild(toast);
-        setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 2000);
-    }
-
-    // Login UI Simulation
-    ui.sync.btnShow.addEventListener('click', () => { ui.sync.modal.classList.remove('hidden'); ui.sync.modal.classList.add('flex'); });
-    ui.sync.close.addEventListener('click', () => { ui.sync.modal.classList.add('hidden'); ui.sync.modal.classList.remove('flex'); });
-    
-    ui.sync.btnRegister.addEventListener('click', () => {
-        if(ui.sync.email.value && ui.sync.password.value.length >= 6) {
-            userId = ui.sync.email.value;
-            loadFromLocal();
-            ui.sync.form.classList.add('hidden'); ui.sync.loggedInView.classList.remove('hidden'); ui.sync.loggedInView.classList.add('flex');
-            ui.sync.emailDisplay.innerText = userId;
-            ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-check mr-1"></i>Bağlandı';
-            ui.sync.btnShow.classList.replace('text-blue-400', 'text-green-400');
-            showToast("Hesap bağlandı!");
+            // Bar Chart
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            if (barChart) barChart.destroy();
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: 'Günlük P/L ($)',
+                        data: barData,
+                        backgroundColor: barData.map(d => d >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'), // emerald or red
+                        borderRadius: 4
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
         }
-    });
 
-    ui.sync.form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        userId = ui.sync.email.value;
-        loadFromLocal();
-        ui.sync.form.classList.add('hidden'); ui.sync.loggedInView.classList.remove('hidden'); ui.sync.loggedInView.classList.add('flex');
-        ui.sync.emailDisplay.innerText = userId;
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-check mr-1"></i>Bağlandı';
-        ui.sync.btnShow.classList.replace('text-blue-400', 'text-green-400');
-        showToast("Giriş yapıldı!");
-    });
+        function formatMoney(value) {
+            const num = Number(value);
+            const formatted = Math.abs(num).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            return (num < 0 ? "-" : "") + "$" + formatted;
+        }
 
-    ui.sync.btnLogout.addEventListener('click', () => {
-        userId = 'local-user';
-        loadFromLocal();
-        ui.sync.form.classList.remove('hidden'); ui.sync.loggedInView.classList.add('hidden'); ui.sync.loggedInView.classList.remove('flex');
-        ui.sync.btnShow.innerHTML = '<i class="fa-solid fa-cloud-arrow-down mr-1"></i>Senkronize Et';
-        ui.sync.btnShow.classList.replace('text-green-400', 'text-blue-400');
-        ui.sync.email.value = ''; ui.sync.password.value = '';
-        ui.sync.modal.classList.add('hidden'); ui.sync.modal.classList.remove('flex');
-    });
-
-    initApp();
-
-</script>
+    </script>
 </body>
 </html>
